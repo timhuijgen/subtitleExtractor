@@ -1,0 +1,14 @@
+{
+  "name": "sonarr-subtitle-extract",
+  "version": "1.0.0",
+  "description": "Extract .srt subtitles from .mkv files using mkvToolNix",
+  "main": "index.js",
+  "scripts": {
+    "main": "./index.js"
+  },
+  "author": "Tim Huijgen",
+  "license": "MIT",
+  "dependencies": {
+    "languagedetect": "^1.1.1"
+  }
+}
