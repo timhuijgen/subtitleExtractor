@@ -15,3 +15,6 @@ For systems that do not support the apt-get method look on the website for instr
 - Via Node `node index.js`
 - Via Bash `./index.js`
 - Via NPM `npm run main`
+
+### Setup
+Update the settings.pathToFile to the path of the file you want processed. The script is currently setup for sonarr. `process.env.sonarr_episodefile_path`
