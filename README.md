@@ -8,7 +8,7 @@ Clone repository, and in the root do an `npm install`
 
 Install MKVToolNix `sudo apt-get install mkvtoolnix` 
 
-For systems that do not support the apt-get method look on the (website for instructions.)[https://mkvtoolnix.download/downloads.html] 
+For systems that do not support the apt-get method look on the website for instructions: https://mkvtoolnix.download/downloads.html
 
 
 ### Run
