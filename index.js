@@ -265,7 +265,7 @@ class SubtitleExtractor {
         if(settings.logToFile) {
             fs.appendFileSync(
                 'subtitle-extract.log',
-                new Date().toUTCString() + ' - ' + message + '\n',
+                `${new Date().toUTCString()} - ${message} \n`,
                 'utf8'
             );
         }
