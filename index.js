@@ -340,6 +340,7 @@ class SubtitleExtractor {
     }
 }
 
+<<<<<<< HEAD
 /**
  * Get command line argument --file="filename.mkv" if its available
  * @returns {string|boolean}
@@ -361,3 +362,7 @@ const subtitleExtractor = new SubtitleExtractor(
     settings.language
 );
 subtitleExtractor.run();
+=======
+const subtitleExtractor = new SubtitleExtractor(settings.pathToFile, settings.language);
+subtitleExtractor.run();
+>>>>>>> 2048528475ae0b01e67ac5a92dc048b68643448d
