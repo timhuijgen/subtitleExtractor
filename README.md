@@ -5,7 +5,6 @@ Usable as post processing script for sonarr
 
 ### Install
 Clone repository, and in the root do an `npm install`
-[https://mkvtoolnix.download/downloads.html](erwg)
 
 Install MKVToolNix `sudo apt-get install mkvtoolnix` 
 
