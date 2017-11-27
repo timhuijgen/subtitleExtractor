@@ -13,9 +13,7 @@ const Translate     = require('languagedetect');
 
 const settings = {
     pathToFile: process.env.sonarr_episodefile_path,
-    language: 'english',
-    logToFile: true,
-    logToConsole: true,
+    language: 'english'
 };
 
 const mkvToolNix = {
@@ -28,16 +26,18 @@ const mkvToolNix = {
 
 class SubtitleExtractor {
 
-    constructor(filepath, language) {
+    constructor(filePath, language) {
         this.log('SubtitleExtractor :: Constructing');
         this.language = language;
+        this.filePath = filePath;
 
         // Debug the environment variables
         // this.log(process.env);
 
         try {
-            this.validateEpisodeFilePath(filepath);
-            this.fileName = this.getEpisodeFilename(filepath);
+            this.validateEpisodeFilePath(filePath);
+            this.fileName = this.getEpisodeFilename(filePath);
+            this.workingDir = this.getWorkingDirectory(filePath);
             this.validateEpisodeFileExtension(this.fileName);
         }
         catch(err) {
@@ -47,34 +47,49 @@ class SubtitleExtractor {
     }
 
     /**
-     * Get the filename from full path
-     * @param {string} filepath
-     * @returns {string} filename
+     * Get the fileName from full path
+     * @param {string} filePath
+     * @returns {string} fileName
      */
-    getEpisodeFilename(filepath) {
-        return path.basename(filepath);
+    getEpisodeFilename(filePath) {
+        return path.basename(filePath);
     }
 
     /**
      * Perform validations on the path
-     * @param {string} filepath
+     * @param {string} filePath
      * @throws Error
      */
-    validateEpisodeFilePath(filepath) {
-        if(!filename) {
-            throw new Error(`Filepath not valid: ${filepath}`);
+    validateEpisodeFilePath(filePath) {
+        if(!filePath) {
+            throw new Error(`Filepath not valid: ${filePath}`);
+        }
+
+        try {
+            fs.accessSync(filePath, fs.constants.R_OK);
+        } catch (err) {
+            throw new Error(`File [${filePath}] does not exists or is not readable`);
         }
     }
 
     /**
      * Check for valid file extensions
-     * @param {string} filename
+     * @param {string} fileName
      * @throws Error
      */
-    validateEpisodeFileExtension(filename) {
-        if(path.extname(filename) !== '.mkv') {
-            throw new Error('File extension not valid: ' + path.extname(filename));
+    validateEpisodeFileExtension(fileName) {
+        if(path.extname(fileName) !== '.mkv') {
+            throw new Error(`File extension [${path.extname(fileName)}] not valid`);
         }
+    }
+
+    /**
+     * Returns directory name of path
+     * @param filePath
+     * @returns {string}
+     */
+    getWorkingDirectory(filePath) {
+        return path.dirname(filePath);
     }
 
     /**
@@ -83,22 +98,25 @@ class SubtitleExtractor {
      */
     getSubtitleTrackIDs() {
         return new Promise((resolve, reject) => {
-            child_process.exec(`${mkvToolNix.merge} -i ${this.fileName} | grep 'subtitles'`, {}, (err, stdout) => {
-                if(err)
-                    reject(err);
-                this.log('Found subtitle tracks: ' + stdout);
+            child_process.exec(
+                `${mkvToolNix.merge} -i "${this.filePath}" | grep 'subtitles'`,
+                {},
+                (err, stdout, stderr) => {
+                    if(err) reject(err);
+                    this.log('Found subtitle tracks: ' + stdout);
 
-                const IDs = stdout
-                    .trim()
-                    .split('\n')
-                    .map(this.extractTrackIDFromLine)
-                    // Remove array items that didn't find any valid ID
-                    .filter(id => {
-                        return Number(id) > -1;
-                    });
+                    const IDs = stdout
+                        .trim()
+                        .split('\n')
+                        .map(this.extractTrackIDFromLine)
+                        // Remove array items that didn't find any valid ID
+                        .filter(id => {
+                            return Number(id) > -1;
+                        });
 
-                resolve(IDs);
-            });
+                    resolve(IDs);
+                }
+            );
         });
     }
 
@@ -138,7 +156,7 @@ class SubtitleExtractor {
     detectTrackLanguage(trackFilename) {
         return new Promise((resolve, reject) => {
             const translate = new Translate();
-            fs.readFile(trackFilename, 'utf8', (err, data) => {
+            fs.readFile(`${this.workingDir}/${trackFilename}`, 'utf8', (err, data) => {
                 if(err) reject(err);
                 const results = translate
                     .detect(data, 1);
@@ -170,7 +188,7 @@ class SubtitleExtractor {
     extractSubtitleTrack(id) {
         return new Promise((resolve, reject) => {
             child_process.exec(
-                `${mkvToolNix.extract} tracks "${this.fileName}" ${id}:"${id}.track.srt" > /dev/null 2>&1`,
+                `${mkvToolNix.extract} tracks "${this.filePath}" ${id}:"${this.workingDir}/${id}.track.srt" > /dev/null 2>&1`,
                 {},
                 err => {
                     if(err) reject(err);
@@ -188,11 +206,15 @@ class SubtitleExtractor {
      */
     updateTrackFilename(trackFilename) {
         return new Promise((resolve, reject) => {
-            fs.rename(trackFilename, `${this.getSubtitleTrackname()}`, (err) => {
-                if(err) reject(err);
-                this.log(`Updated ${trackFilename} with new name ${this.getSubtitleTrackname()}`);
-                resolve();
-            });
+            fs.rename(
+                `${this.workingDir}/${trackFilename}`,
+                `${this.workingDir}/${this.getSubtitleTrackname()}`,
+                err => {
+                    if(err) reject(err);
+                    this.log(`Updated ${trackFilename} with new name ${this.getSubtitleTrackname()}`);
+                    resolve();
+                }
+            );
         });
     }
 
@@ -211,14 +233,12 @@ class SubtitleExtractor {
     }
 
     /**
-     * Return the filename with .srt as extension
+     * Return the fileName with .srt as extension
      * @returns {string}
      */
     getSubtitleTrackname() {
-        return [
-            path.basename(this.fileName, path.extname(this.fileName)),
-            '.srt'
-        ].join('');
+        const baseName = path.basename(this.fileName, path.extname(this.fileName))
+        return `${baseName}.srt`;
     }
 
     /**
@@ -238,12 +258,48 @@ class SubtitleExtractor {
      */
     chmodTrackFile(trackFilename) {
         return new Promise((resolve, reject) => {
-            child_process.exec(`chmod g+rw "${trackFilename}"`, {}, (err, stdout) => {
+            child_process.exec(`chmod g+rw "${this.workingDir}/${trackFilename}"`, {}, (err, stdout) => {
                 if(err)
                     reject(err);
                 this.log(`chmod g+rw on track ${trackFilename} done`);
                 resolve(trackFilename);
             });
+        });
+    }
+
+    /**
+     * Get working directory listing and remove leftover track srt files
+     * @returns {Promise<void>}
+     */
+    cleanupLeftoverTracks() {
+        return new Promise((resolve, reject) => {
+            fs.readdir(this.workingDir, {}, (err, files) => {
+                if(err) reject(err);
+                let deleteTrackPromises = files
+                    .filter(file => {
+                        return file.substr(-10) === '.track.srt';
+                    })
+                    .map(this.deleteTrack.bind(this));
+
+                Promise.all(deleteTrackPromises)
+                    .then(resolve)
+                    .catch(reject);
+            });
+        });
+    }
+
+    /**
+     * Unlink track
+     * @param track
+     * @returns {Promise<void>}
+     */
+    deleteTrack(track) {
+        return new Promise((resolve, reject) => {
+            fs.unlink(`${this.workingDir}/${track}`, err => {
+                if(err) reject(err);
+                this.log(`Removed leftover track ${track}`);
+                resolve();
+            })
         });
     }
 
@@ -258,17 +314,13 @@ class SubtitleExtractor {
 
         message = message.trim();
 
-        if(settings.logToConsole) {
-            console.log('LOG :: ' + message);
-        }
+        console.log(`LOG :: ${message}`);
 
-        if(settings.logToFile) {
-            fs.appendFileSync(
-                'subtitle-extract.log',
-                new Date().toUTCString() + ' - ' + message + '\n',
-                'utf8'
-            );
-        }
+        fs.appendFileSync(
+            `${__dirname}/subtitle-extractor.log`,
+            `${new Date().toUTCString()} - ${message} \n`,
+            'utf8'
+        );
     }
 
     /**
@@ -280,6 +332,7 @@ class SubtitleExtractor {
             .then(this.chmodTrackFiles.bind(this))
             .then(this.detectTrackLanguages.bind(this))
             .then(this.updateTrackFilename.bind(this))
+            .then(this.cleanupLeftoverTracks.bind(this))
             .catch((err) => {
                 console.error('Whoops, something went wrong', err);
                 this.log('Aborted: ' + err.message || JSON.stringify(err));
@@ -287,5 +340,24 @@ class SubtitleExtractor {
     }
 }
 
-const subtitleExtractor = new SubtitleExtractor(settings.pathToFile, settings.language);
+/**
+ * Get command line argument --file="filename.mkv" if its available
+ * @returns {string|boolean}
+ */
+function getFileFromArgv() {
+    let match = process.argv.find(argument => {
+        return argument.substr(0, 7) === "--file=";
+    });
+
+    if(match) {
+        return match.substr(7);
+    }
+    return false;
+}
+
+//  Priority of --file= command line arguments over settings pathToFile
+const subtitleExtractor = new SubtitleExtractor(
+    getFileFromArgv() || settings.pathToFile,
+    settings.language
+);
 subtitleExtractor.run();
