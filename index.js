@@ -16,18 +16,21 @@ const settings = {
     language: 'english'
 };
 
-const mkvToolNix = {
-    merge: 'mkvmerge',
-    extract: 'mkvextract'
-    // For local testing
-    // merge: '/Applications/MKVToolNix-17.0.0.app/Contents/MacOS/mkvmerge',
-    // extract: '/Applications/MKVToolNix-17.0.0.app/Contents/MacOS/mkvextract'
+const commands = {
+    mkvToolNix: {
+        merge: 'mkvmerge',
+        extract: 'mkvextract',
+        // Locations for local testing
+        // merge: '/Applications/MKVToolNix-17.0.0.app/Contents/MacOS/mkvmerge',
+        // extract: '/Applications/MKVToolNix-17.0.0.app/Contents/MacOS/mkvextract'
+    },
+    ffmpeg: 'ffmpeg'
 };
 
 class SubtitleExtractor {
 
     constructor(filePath, language) {
-        this.log('SubtitleExtractor :: Constructing');
+        this.log('SubtitleExtractor :: Constructing :: ' + filePath);
         this.language = language;
         this.filePath = filePath;
 
@@ -99,7 +102,7 @@ class SubtitleExtractor {
     getSubtitleTrackIDs() {
         return new Promise((resolve, reject) => {
             child_process.exec(
-                `${mkvToolNix.merge} -i "${this.filePath}" | grep 'subtitles'`,
+                `${commands.mkvToolNix.merge} -i "${this.filePath}" | grep 'subtitles'`,
                 {},
                 (err, stdout, stderr) => {
                     if(err) reject(err);
@@ -188,13 +191,13 @@ class SubtitleExtractor {
     extractSubtitleTrack(id) {
         return new Promise((resolve, reject) => {
             child_process.exec(
-                `${mkvToolNix.extract} tracks "${this.filePath}" ${id}:"${this.workingDir}/${id}.track.srt" > /dev/null 2>&1`,
+                `${commands.mkvToolNix.extract} tracks "${this.filePath}" ${id}:"${this.workingDir}/${id}.track.ssa" > /dev/null 2>&1`,
                 {},
                 err => {
                     if(err) reject(err);
 
-                    this.log(`Extracted subtitle track ${id} to file ${id}.track.srt`);
-                    resolve(`${id}.track.srt`);
+                    this.log(`Extracted subtitle track ${id} to file ${id}.track.ssa`);
+                    resolve(`${id}.track.ssa`);
                 }
             );
         });
@@ -204,17 +207,17 @@ class SubtitleExtractor {
      * @param trackFilename
      * @returns {Promise<void>}
      */
-    updateTrackFilename(trackFilename) {
+    convertSsaToSrt(trackFilename) {
         return new Promise((resolve, reject) => {
-            fs.rename(
-                `${this.workingDir}/${trackFilename}`,
-                `${this.workingDir}/${this.getSubtitleTrackname()}`,
-                err => {
-                    if(err) reject(err);
-                    this.log(`Updated ${trackFilename} with new name ${this.getSubtitleTrackname()}`);
-                    resolve();
-                }
-            );
+            child_process
+                .exec(`${commands.ffmpeg} -y -i "${this.workingDir}/${trackFilename}" "${this.workingDir}/${this.getSubtitleTrackname()}"`,
+                    {},
+                    err => {
+                        if(err) reject(err);
+                        this.log(`Converted ${trackFilename} to SRT ${this.getSubtitleTrackname()}`);
+                        resolve();
+                    }
+                );
         });
     }
 
@@ -277,7 +280,7 @@ class SubtitleExtractor {
                 if(err) reject(err);
                 let deleteTrackPromises = files
                     .filter(file => {
-                        return file.substr(-10) === '.track.srt';
+                        return file.substr(-10) === '.track.ssa';
                     })
                     .map(this.deleteTrack.bind(this));
 
@@ -331,7 +334,7 @@ class SubtitleExtractor {
             .then(this.extractSubtitleTracks.bind(this))
             .then(this.chmodTrackFiles.bind(this))
             .then(this.detectTrackLanguages.bind(this))
-            .then(this.updateTrackFilename.bind(this))
+            .then(this.convertSsaToSrt.bind(this))
             .then(this.cleanupLeftoverTracks.bind(this))
             .catch((err) => {
                 console.error('Whoops, something went wrong', err);
