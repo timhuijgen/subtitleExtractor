@@ -6,8 +6,8 @@ Usable as post processing script for sonarr
 ### Install
 Clone repository, and in the root do an `npm install`
 
-Install MKVToolNix `sudo apt-get install mkvtoolnix` 
-Install FFmpeg `sudo apt-get install ffmpeg`
+- Install MKVToolNix `sudo apt-get install mkvtoolnix` 
+- Install FFmpeg `sudo apt-get install ffmpeg`
 
 For systems that do not support the apt-get method look on the website for instructions: https://mkvtoolnix.download/downloads.html and https://www.ffmpeg.org/ respectively. 
 
@@ -16,7 +16,7 @@ For systems that do not support the apt-get method look on the website for instr
 - Via Bash `./index.js`
 
 ### Setup
-Update the settings.pathToFile to the path of the file you want processed. The script is currently setup for sonarr. `process.env.sonarr_episodefile_path`
+Update the settings.pathToFile with the full filepath you want processed. The script is currently setup for sonarr. `process.env.sonarr_episodefile_path`
 
 Optional file argument `./index.js --file="/path/to/my/file.mkv"`
 
