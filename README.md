@@ -1,15 +1,16 @@
 # subtitleExtractor
-Extract .SSA (SubStationAlpha) subtitles from .mkv and convert them to .SRT format using mkvToolNix and FFmpeg.
+Extract .SSA (SubStationAlpha) subtitles from .mkv and convert them to .SRT format using FFmpeg.
 
 Usable as post processing script for sonarr
 
 ### Install
-Clone repository, and in the root do an `npm install`
+Clone repository
 
-Install MKVToolNix `sudo apt-get install mkvtoolnix` 
 Install FFmpeg `sudo apt-get install ffmpeg`
 
-For systems that do not support the apt-get method look on the website for instructions: https://mkvtoolnix.download/downloads.html and https://www.ffmpeg.org/ respectively. 
+FFmpeg needs to have ssa/ass codecs and srt codec/encoder
+
+For more info on ffmpeg look on the website for instructions: https://www.ffmpeg.org/. 
 
 ### Run
 - Via Node `node index.js`
@@ -18,5 +19,8 @@ For systems that do not support the apt-get method look on the website for instr
 ### Setup
 Update the settings.pathToFile to the path of the file you want processed. The script is currently setup for sonarr. `process.env.sonarr_episodefile_path`
 
-Optional file argument `./index.js --file="/path/to/my/file.mkv"`
+Options
+- `./index.js --file=/path/to/my/file.mkv`
+- `./index.js --dir=/path/to/my/dir/`
+- `./index.js --language=eng --file=/path/to/my/file.mkv`
 
