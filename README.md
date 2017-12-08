@@ -17,7 +17,7 @@ For more info on ffmpeg look on the website for instructions: https://www.ffmpeg
 - Via Bash `./index.js`
 
 ### Setup
-Update the settings.pathToFile to the path of the file you want processed. The script is currently setup for sonarr. `process.env.sonarr_episodefile_path`
+Update the settings.pathToFile with the full filepath you want processed. The script is currently setup for sonarr. `process.env.sonarr_episodefile_path`
 
 Options
 - `./index.js --file=/path/to/my/file.mkv`
