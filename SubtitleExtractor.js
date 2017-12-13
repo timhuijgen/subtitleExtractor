@@ -25,9 +25,9 @@ const commands = {
 class SubtitleExtractor {
 
     constructor(filePath, language) {
-        this.log(`SubtitleExtractor :: Constructing :: [${language}] ${filePath}`);
         this.language = language || config.fallbackLanguage;
         this.filePath = filePath;
+        this.log(`SubtitleExtractor :: Constructing :: [${language}] ${filePath}`);
 
         try {
             this.validateEpisodeFilePath(filePath);
@@ -103,7 +103,10 @@ class SubtitleExtractor {
                         .filter(line => {
                             return line.indexOf('Subtitle') > -1
                         })
-                        .map(this.extractTrackDataFromLine);
+                        .map(this.extractTrackDataFromLine)
+                        .filter(info => {
+                            return info !== false;
+                        });
 
                     this.log('Found track info ' + JSON.stringify(trackInfo));
 
@@ -141,29 +144,95 @@ class SubtitleExtractor {
      */
     extractTrack(index) {
         return new Promise((resolve, reject) => {
-            child_process.exec(`${commands.ffmpeg} -y -i "${this.filePath}" -map 0:${index} "${this.workingDir}/${this.getSubtitleTrackname()}"`,
-                {}, (err, stdout, stderr) => {
-                    if(err) reject(err);
 
-                    this.log('Extracted track to srt file');
+            let start = new Date(),
+                process = child_process.spawn(commands.ffmpeg,
+                [
+                    // Force overwrite existing files
+                    '-y',
+                    // Specify input file
+                    '-i', this.filePath,
+                    // Select the correct stream
+                    '-map', `0:${index}`,
+                    // Output file
+                    `${this.workingDir}/${this.getSubtitleTrackname()}`
+                ]);
 
-                    resolve(this.getSubtitleTrackname());
-                });
+            process.on('error', reject);
+            process.on('close', code => {
+                const elapsed = parseFloat((new Date() - start) / 1000).toFixed(2);
+                this.log(`Extracted and encoded ${this.getSubtitleTrackname()} in ${elapsed}s`);
+                resolve(this.getSubtitleTrackname());
+            });
+
+            this.progress(process, start);
+
+            this.log(`Starting extraction of stream ${index} and conversion process`);
         });
     }
 
     /**
-     * Returns the ID from track or false
+     * Watch the stderr for output data and try to parse progress info from it
+     *
+     * @param process
+     * @param start
+     */
+    progress(process, start) {
+        let blob = '',
+            duration;
+
+        const currentTimeRegex = /size=(?:.*)time=([0-9]{2}):([0-9]{2}):([0-9]{2})/i;
+        const durationRegex = /duration\s*:\s*([0-9]{2}):([0-9]{2}):([0-9]{2})/i;
+
+        process.stderr.on('data', data => {
+            blob += data.toString('utf8');
+
+            const durationResult = durationRegex.exec(blob);
+            if(!duration && durationResult && durationResult[3]) {
+
+                duration =
+                    (durationResult[1] * 3600)
+                    + (durationResult[2] * 60)
+                    + (durationResult[3] * 1);
+            }
+
+            const lineOnlyTime = currentTimeRegex.exec(data);
+            if(duration && lineOnlyTime && lineOnlyTime[3]) {
+                let progress =
+                        (lineOnlyTime[1] * 3600)
+                        + (lineOnlyTime[2] * 60)
+                        + (lineOnlyTime[3] * 1),
+                    now = new Date(),
+                    sec = parseFloat((now - start) / 1000).toFixed(2),
+                    progressPercent = parseFloat(progress / duration * 100).toFixed(2);
+
+                // Log directly to prevent file logs of progress
+                console.log(`Progress: ${progressPercent}% in ${sec}s`);
+            }
+
+        });
+    }
+
+    /**
+     * Returns the track index and language
+     *
+     * Matches "Stream #0:2(eng): Subtitle: ass (default)"
+     * And extracts the stream index (2) and language (optional) eng
+     *
      * @param {string} line
-     * @returns {object}
+     * @returns {object|boolean}
      */
     extractTrackDataFromLine(line) {
-        const regex = /#[0-9]{1,}:([0-9]{1,})\(([a-zA-Z]{2,})\)/i;
+        const regex = /#[0-9]{1,}:([0-9]{1,})(?:\(([a-zA-Z]{2,})\))?/i;
         let result = regex.exec(line);
-        return {
-            index: result[1],
-            language: result[2]
-        };
+
+        if(result && result[1]) {
+            return {
+                index: result[1],
+                language: result[2] || 'undefined'
+            };
+        }
+        return false;
     }
 
     /**
@@ -184,7 +253,7 @@ class SubtitleExtractor {
         return new Promise((resolve, reject) => {
             child_process.exec(`chmod g+rw "${this.workingDir}/${trackFilename}"`,
                 {},
-                (err, stdout) => {
+                (err, _) => {
                     if(err) reject(err);
 
                     this.log(`chmod g+rw on track ${trackFilename} done`);
